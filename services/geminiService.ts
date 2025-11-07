@@ -1,29 +1,18 @@
+// Fix: Removed reference to "vite/client" which was causing a "Cannot find type definition file" error.
 import { GoogleGenAI } from "@google/genai";
 
-/**
- * Verifies if a given API key is valid by making a simple request to the Gemini API.
- * @param apiKey The Google Gemini API key to verify.
- * @returns A promise that resolves to true if the key is valid, false otherwise.
- */
-export const verifyApiKey = async (apiKey: string): Promise<boolean> => {
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    // Use a lightweight model and a simple prompt to check for authentication.
-    await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: 'hello',
-    });
-    return true;
-  } catch (error) {
-    console.error("API Key validation failed:", error);
-    return false;
-  }
-};
+// Fix: Removed verifyApiKey function. As per guidelines, the API key is assumed to be valid
+// from the environment variables, so client-side verification is not needed.
 
-
-export const verifyGoalWithGemini = async (goal: string, imageBase64: string, apiKey: string): Promise<boolean> => {
+// Fix: Updated verifyGoalWithGemini to source the API key from environment variables,
+// removing the apiKey parameter to align with security best practices and guidelines.
+export const verifyGoalWithGemini = async (goal: string, imageBase64: string): Promise<boolean> => {
+  // Fix: API key is now sourced from environment variables. A check is added to ensure it's set.
+  // FIX: Cast `import.meta` to `any` to bypass TypeScript errors when `vite/client` types are not available.
+  const apiKey = (import.meta as any).env.VITE_API_KEY;
   if (!apiKey) {
-    console.error("API Key not provided for verification.");
+    console.error('VITE_API_KEY is not set in the environment variables.');
+    // Per guidelines, UI for key entry is removed. This error is for developers.
     return false;
   }
 
@@ -55,6 +44,7 @@ export const verifyGoalWithGemini = async (goal: string, imageBase64: string, ap
     return verificationResult === 'YES';
   } catch (error) {
     console.error("Error verifying with Gemini:", error);
+    // Per guidelines, we assume the API key is valid. Errors are treated as transient.
     return false;
   }
 };

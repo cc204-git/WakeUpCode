@@ -6,11 +6,10 @@ import { CameraIcon } from './icons/CameraIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
 import { Goal } from '../types';
 
+// Fix: Removed apiKey and onInvalidApiKey from props, as API key is now handled by environment variables.
 interface GoalTrackerProps {
   goal: Goal;
   onGoalSuccess: () => void;
-  apiKey: string;
-  onInvalidApiKey: () => void;
 }
 
 const CountdownSegment: React.FC<{ value: number; label: string }> = ({ value, label }) => (
@@ -21,7 +20,8 @@ const CountdownSegment: React.FC<{ value: number; label: string }> = ({ value, l
 );
 
 
-const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, onGoalSuccess, apiKey, onInvalidApiKey }) => {
+// Fix: Removed apiKey and onInvalidApiKey from props.
+const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, onGoalSuccess }) => {
     // Convert Firestore Timestamp to JS Date for the countdown hook
     const deadline = goal.deadline.toDate();
     const { days, hours, minutes, seconds, isOver } = useCountdown(deadline);
@@ -29,16 +29,18 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, onGoalSuccess, apiKey, 
     const [error, setError] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Fix: Updated to call verifyGoalWithGemini without the apiKey argument.
     const handleVerificationSubmit = async (imageBase64: string) => {
         setIsLoading(true);
         setError('');
-        const success = await verifyGoalWithGemini(goal.goal, imageBase64, apiKey);
+        const success = await verifyGoalWithGemini(goal.goal, imageBase64);
         setIsLoading(false);
 
         if (success) {
             onGoalSuccess();
         } else {
-            setError('Verification failed. The AI could not confirm your goal completion. This might be due to a poor image or an invalid API key.');
+            // Fix: Updated error message as invalid API key is no longer a user-facing issue.
+            setError('Verification failed. The AI could not confirm your goal completion. Please try again with a clearer image.');
         }
     };
 
@@ -105,12 +107,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, onGoalSuccess, apiKey, 
                 </button>
             )}
 
+            {/* Fix: Removed invalid API key error handling and button to change key. */}
             {error && (
                 <div className="text-brand-danger text-sm mt-4">
                     <p>{error}</p>
-                    <button onClick={onInvalidApiKey} className="mt-2 text-brand-light hover:text-brand-highlight underline text-xs font-semibold">
-                        Change API Key
-                    </button>
                 </div>
             )}
         </div>

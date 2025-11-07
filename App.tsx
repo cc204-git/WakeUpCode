@@ -5,7 +5,7 @@ import LockSetup from './components/LockSetup';
 import GoalTracker from './components/GoalTracker';
 import SuccessScreen from './components/SuccessScreen';
 import Login from './components/Login';
-import ApiKeySetup from './components/ApiKeySetup';
+// Fix: Removed ApiKeySetup as API key is now handled by environment variables per guidelines.
 import { auth, db } from './firebase/config';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import {
@@ -21,21 +21,14 @@ import {
 
 
 const App: React.FC = () => {
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  // Fix: Removed apiKey state management to align with guidelines of using environment variables.
   const [user, setUser] = useState<User | null>(null);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
-  const [isKeyChecked, setIsKeyChecked] = useState(false);
+  // Fix: Removed isKeyChecked state as API key is no longer managed in the component.
 
-  // Check for API key in local storage
-  useEffect(() => {
-    const storedApiKey = localStorage.getItem('apiKey');
-    if (storedApiKey) {
-      setApiKey(storedApiKey);
-    }
-    setIsKeyChecked(true);
-  }, []);
+  // Fix: Removed useEffect for checking API key in local storage.
 
   // Listen for Firebase auth state changes
   useEffect(() => {
@@ -72,15 +65,8 @@ const App: React.FC = () => {
   }, [user]);
 
 
-  const handleApiKeyVerified = useCallback((newApiKey: string) => {
-    localStorage.setItem('apiKey', newApiKey);
-    setApiKey(newApiKey);
-  }, []);
-
-  const handleInvalidApiKey = useCallback(() => {
-    localStorage.removeItem('apiKey');
-    setApiKey(null);
-  }, []);
+  // Fix: Removed handleApiKeyVerified and handleInvalidApiKey callbacks.
+  // API key is now handled via environment variables and assumed to be valid.
 
   const handleLogout = useCallback(async () => {
     try {
@@ -156,8 +142,8 @@ const App: React.FC = () => {
     }
 
     if (currentGoal.status === 'active') {
-        if (!apiKey) return null; // Should be handled by parent render logic
-        return <GoalTracker goal={currentGoal} onGoalSuccess={handleGoalSuccess} apiKey={apiKey} onInvalidApiKey={handleInvalidApiKey} />;
+        // Fix: Removed props from GoalTracker as API key is handled by environment variables.
+        return <GoalTracker goal={currentGoal} onGoalSuccess={handleGoalSuccess} />;
     }
 
     if (currentGoal.status === 'completed') {
@@ -167,15 +153,8 @@ const App: React.FC = () => {
     return <GoalSetup onGoalSet={handleGoalSet} />;
   };
 
+  // Fix: Simplified renderApp to remove API key checking logic.
   const renderApp = () => {
-    if (!isKeyChecked) {
-        return null; // Don't render anything until the key check is complete
-    }
-      
-    if (!apiKey) {
-      return <ApiKeySetup onApiKeyVerified={handleApiKeyVerified} />;
-    }
-
     return (
       <>
         {user && (
