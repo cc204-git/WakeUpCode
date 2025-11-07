@@ -1,17 +1,37 @@
 import React, { useState } from 'react';
 import { LockIcon } from './icons/LockIcon';
+import { auth } from '../firebase/config';
+import { 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword,
+    AuthError
+} from 'firebase/auth';
 
-interface LoginProps {
-    onLoginSuccess: () => void;
-}
-
-const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+const Login: React.FC = () => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleFirebaseError = (err: AuthError) => {
+        switch (err.code) {
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+                setError('Invalid email or password.');
+                break;
+            case 'auth/email-already-in-use':
+                setError('An account with this email already exists.');
+                break;
+            case 'auth/weak-password':
+                setError('Password should be at least 6 characters.');
+                break;
+            default:
+                setError('An unexpected error occurred. Please try again.');
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
@@ -19,35 +39,19 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             setError('Email and password cannot be empty.');
             return;
         }
-
-        if (isLoginView) {
-            // Handle Login
-            const storedUser = localStorage.getItem('user');
-            if (!storedUser) {
-                setError('No account found with this email. Please sign up.');
-                return;
-            }
-            const user = JSON.parse(storedUser);
-            if (user.email === email && user.password === password) {
-                localStorage.setItem('sessionToken', 'mock-logged-in');
-                onLoginSuccess();
+        
+        setIsLoading(true);
+        try {
+            if (isLoginView) {
+                await signInWithEmailAndPassword(auth, email, password);
             } else {
-                setError('Invalid email or password.');
+                await createUserWithEmailAndPassword(auth, email, password);
             }
-        } else {
-            // Handle Sign Up
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                if (user.email === email) {
-                    setError('An account with this email already exists.');
-                    return;
-                }
-            }
-            // In a real app, password would be hashed.
-            localStorage.setItem('user', JSON.stringify({ email, password }));
-            localStorage.setItem('sessionToken', 'mock-logged-in');
-            onLoginSuccess();
+            // onAuthStateChanged in App.tsx will handle the rest.
+        } catch (err) {
+            handleFirebaseError(err as AuthError);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -82,6 +86,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         placeholder="you@example.com"
                         className="w-full bg-brand-primary border border-brand-accent text-brand-highlight rounded-lg p-3 focus:ring-2 focus:ring-brand-light focus:outline-none transition"
                         autoComplete="email"
+                        disabled={isLoading}
                     />
                 </div>
                 <div>
@@ -94,14 +99,23 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                         placeholder="••••••••"
                         className="w-full bg-brand-primary border border-brand-accent text-brand-highlight rounded-lg p-3 focus:ring-2 focus:ring-brand-light focus:outline-none transition"
                         autoComplete={isLoginView ? "current-password" : "new-password"}
+                        disabled={isLoading}
                     />
                 </div>
                 {error && <p className="text-brand-danger text-sm text-center">{error}</p>}
                 <button
                     type="submit"
-                    className="w-full bg-brand-success text-brand-primary font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transform hover:scale-105 transition-all duration-300 shadow-lg"
+                    disabled={isLoading}
+                    className="w-full bg-brand-success text-brand-primary font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transform hover:scale-105 transition-all duration-300 shadow-lg flex items-center justify-center disabled:bg-brand-accent disabled:transform-none disabled:cursor-not-allowed"
                 >
-                    {isLoginView ? 'Login' : 'Sign Up'}
+                     {isLoading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        isLoginView ? 'Login' : 'Sign Up'
+                      )}
                 </button>
             </form>
             <div className="text-center mt-6">

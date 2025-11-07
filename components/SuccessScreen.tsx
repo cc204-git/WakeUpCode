@@ -1,13 +1,13 @@
-
 import React from 'react';
 import { TrophyIcon } from './icons/TrophyIcon';
+import { Goal } from '../types';
 
 interface SuccessScreenProps {
-  lockImage: string;
+  goal: Goal;
   onReset: () => void;
 }
 
-const SuccessScreen: React.FC<SuccessScreenProps> = ({ lockImage, onReset }) => {
+const SuccessScreen: React.FC<SuccessScreenProps> = ({ goal, onReset }) => {
   return (
     <div className="bg-brand-secondary p-8 rounded-2xl shadow-2xl text-center animate-fade-in">
       <div className="inline-block bg-brand-success p-4 rounded-full mb-4">
@@ -17,11 +17,13 @@ const SuccessScreen: React.FC<SuccessScreenProps> = ({ lockImage, onReset }) => 
       <p className="text-brand-light mb-6">You've achieved your goal and unlocked your code.</p>
       
       <div className="border-4 border-brand-accent rounded-lg p-2 bg-brand-primary mb-8">
-        <img 
-          src={lockImage} 
-          alt="Unlocked Code" 
-          className="w-full h-auto rounded-md object-contain max-h-64"
-        />
+        {goal.lockImage && (
+          <img 
+            src={goal.lockImage} 
+            alt="Unlocked Code" 
+            className="w-full h-auto rounded-md object-contain max-h-64"
+          />
+        )}
       </div>
 
       <button

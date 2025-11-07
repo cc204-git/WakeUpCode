@@ -4,10 +4,10 @@ import { verifyGoalWithGemini } from '../services/geminiService';
 import { fileToBase64 } from '../utils/imageUtils';
 import { CameraIcon } from './icons/CameraIcon';
 import { TrophyIcon } from './icons/TrophyIcon';
+import { Goal } from '../types';
 
 interface GoalTrackerProps {
-  goal: string;
-  deadline: Date;
+  goal: Goal;
   onGoalSuccess: () => void;
   apiKey: string;
   onInvalidApiKey: () => void;
@@ -21,9 +21,10 @@ const CountdownSegment: React.FC<{ value: number; label: string }> = ({ value, l
 );
 
 
-const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, deadline, onGoalSuccess, apiKey, onInvalidApiKey }) => {
+const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, onGoalSuccess, apiKey, onInvalidApiKey }) => {
+    // Convert Firestore Timestamp to JS Date for the countdown hook
+    const deadline = goal.deadline.toDate();
     const { days, hours, minutes, seconds, isOver } = useCountdown(deadline);
-    const [isVerifying, setIsVerifying] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,14 +32,13 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, deadline, onGoalSuccess
     const handleVerificationSubmit = async (imageBase64: string) => {
         setIsLoading(true);
         setError('');
-        const success = await verifyGoalWithGemini(goal, imageBase64, apiKey);
+        const success = await verifyGoalWithGemini(goal.goal, imageBase64, apiKey);
         setIsLoading(false);
 
         if (success) {
             onGoalSuccess();
         } else {
             setError('Verification failed. The AI could not confirm your goal completion. This might be due to a poor image or an invalid API key.');
-            setIsVerifying(false);
         }
     };
 
@@ -51,14 +51,12 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, deadline, onGoalSuccess
             } catch (err) {
                 setError('Could not read the image. Please try again.');
                 setIsLoading(false);
-                setIsVerifying(false);
             }
         }
     };
 
     const handleVerifyClick = () => {
         setError('');
-        setIsVerifying(true);
         // This slight delay allows the UI to update before triggering the file input
         setTimeout(() => fileInputRef.current?.click(), 100);
     };
@@ -66,7 +64,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goal, deadline, onGoalSuccess
     return (
         <div className="bg-brand-secondary p-8 rounded-2xl shadow-2xl text-center animate-fade-in w-full">
             <h2 className="text-lg font-semibold text-brand-light mb-2">YOUR GOAL</h2>
-            <p className="text-2xl font-bold text-brand-highlight mb-6 break-words">"{goal}"</p>
+            <p className="text-2xl font-bold text-brand-highlight mb-6 break-words">"{goal.goal}"</p>
 
             <div className="bg-brand-primary rounded-lg p-4 mb-6">
                 <h3 className="text-sm font-semibold text-brand-light mb-3 uppercase tracking-wider">Time Remaining</h3>

@@ -1,38 +1,77 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState } from './types';
+import { Goal } from './types';
 import GoalSetup from './components/GoalSetup';
 import LockSetup from './components/LockSetup';
 import GoalTracker from './components/GoalTracker';
 import SuccessScreen from './components/SuccessScreen';
 import Login from './components/Login';
 import ApiKeySetup from './components/ApiKeySetup';
+import { auth, db } from './firebase/config';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  updateDoc,
+  doc,
+  Timestamp,
+} from 'firebase/firestore';
+
 
 const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [appState, setAppState] = useState<AppState>(AppState.SETUP_GOAL);
-  const [goal, setGoal] = useState<string>('');
-  const [deadline, setDeadline] = useState<Date | null>(null);
-  const [lockImage, setLockImage] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [isKeyChecked, setIsKeyChecked] = useState(false);
 
+  // Check for API key in local storage
   useEffect(() => {
-    // Check for API key in local storage on initial load
     const storedApiKey = localStorage.getItem('apiKey');
     if (storedApiKey) {
       setApiKey(storedApiKey);
     }
-    setIsKeyChecked(true); // Mark that we've checked for the key
+    setIsKeyChecked(true);
   }, []);
 
+  // Listen for Firebase auth state changes
   useEffect(() => {
-    // Check for a mock session token on initial load
-    const session = localStorage.getItem('sessionToken');
-    if (session) {
-      setIsAuthenticated(true);
-    }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
   
+  // Fetch user's active goal from Firestore when they log in
+  useEffect(() => {
+    const fetchGoal = async () => {
+        if (user) {
+            setIsDataLoading(true);
+            const goalsRef = collection(db, 'goals');
+            const q = query(goalsRef, where('userId', '==', user.uid), where('status', '==', 'active'));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const goalDoc = querySnapshot.docs[0];
+                setCurrentGoal({ id: goalDoc.id, ...goalDoc.data() } as Goal);
+            } else {
+                setCurrentGoal(null);
+            }
+            setIsDataLoading(false);
+        } else {
+            // If user logs out, clear data
+            setCurrentGoal(null);
+            setIsDataLoading(false);
+        }
+    };
+    
+    fetchGoal();
+  }, [user]);
+
+
   const handleApiKeyVerified = useCallback((newApiKey: string) => {
     localStorage.setItem('apiKey', newApiKey);
     setApiKey(newApiKey);
@@ -43,64 +82,89 @@ const App: React.FC = () => {
     setApiKey(null);
   }, []);
 
-  const handleLoginSuccess = useCallback(() => {
-    setIsAuthenticated(true);
-  }, []);
-  
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('sessionToken');
-    setIsAuthenticated(false);
-    // Reset app state on logout
-    handleReset();
+  const handleLogout = useCallback(async () => {
+    try {
+        await signOut(auth);
+    } catch (error) {
+        console.error("Error signing out: ", error);
+    }
   }, []);
 
-  const handleGoalSet = useCallback((newGoal: string, newDeadline: Date) => {
-    setGoal(newGoal);
-    setDeadline(newDeadline);
-    setAppState(AppState.SETUP_LOCK);
-  }, []);
+  const handleGoalSet = useCallback(async (newGoal: string, newDeadline: Date) => {
+    if (!user) return;
+    const goalData = {
+        userId: user.uid,
+        goal: newGoal,
+        deadline: Timestamp.fromDate(newDeadline),
+        lockImage: null,
+        status: 'active' as const,
+    };
+    try {
+        const docRef = await addDoc(collection(db, 'goals'), goalData);
+        setCurrentGoal({ id: docRef.id, ...goalData });
+    } catch (error) {
+        console.error("Error adding document: ", error);
+    }
+  }, [user]);
 
-  const handleLockSet = useCallback((imageBase64: string) => {
-    setLockImage(imageBase64);
-    setAppState(AppState.TRACKING);
-  }, []);
+  const handleLockSet = useCallback(async (imageBase64: string) => {
+    if (!currentGoal) return;
+    const goalRef = doc(db, 'goals', currentGoal.id);
+    try {
+        await updateDoc(goalRef, { lockImage: imageBase64 });
+        setCurrentGoal(prev => prev ? { ...prev, lockImage: imageBase64 } : null);
+    } catch (error) {
+        console.error("Error updating document: ", error);
+    }
+  }, [currentGoal]);
 
-  const handleGoalSuccess = useCallback(() => {
-    setAppState(AppState.SUCCESS);
-  }, []);
+  const handleGoalSuccess = useCallback(async () => {
+    if (!currentGoal) return;
+    const goalRef = doc(db, 'goals', currentGoal.id);
+    try {
+        await updateDoc(goalRef, { status: 'completed' });
+        setCurrentGoal(prev => prev ? { ...prev, status: 'completed' } : null);
+    } catch (error) {
+        console.error("Error updating document: ", error);
+    }
+  }, [currentGoal]);
   
   const handleReset = useCallback(() => {
-    setGoal('');
-    setDeadline(null);
-    setLockImage(null);
-    setAppState(AppState.SETUP_GOAL);
+    // We could archive the goal in DB, but for now just resetting state is enough
+    setCurrentGoal(null);
   }, []);
   
   const renderContent = () => {
-    if (!isAuthenticated) {
-        return <Login onLoginSuccess={handleLoginSuccess} />;
+    if (isAuthLoading || isDataLoading) {
+      return (
+          <div className="flex items-center justify-center h-screen">
+              <div className="w-16 h-16 border-4 border-brand-accent border-t-brand-highlight rounded-full animate-spin"></div>
+          </div>
+      );
     }
     
-    switch (appState) {
-      case AppState.SETUP_GOAL:
-        return <GoalSetup onGoalSet={handleGoalSet} />;
-      case AppState.SETUP_LOCK:
-        return <LockSetup onLockSet={handleLockSet} />;
-      case AppState.TRACKING:
-        if (!goal || !deadline || !apiKey) {
-            handleReset(); // Should not happen, but as a safeguard
-            return null;
-        }
-        return <GoalTracker goal={goal} deadline={deadline} onGoalSuccess={handleGoalSuccess} apiKey={apiKey} onInvalidApiKey={handleInvalidApiKey} />;
-      case AppState.SUCCESS:
-        if (!lockImage) {
-            handleReset(); // Should not happen, but as a safeguard
-            return null;
-        }
-        return <SuccessScreen lockImage={lockImage} onReset={handleReset} />;
-      default:
+    if (!user) {
+        return <Login />;
+    }
+    
+    if (!currentGoal) {
         return <GoalSetup onGoalSet={handleGoalSet} />;
     }
+
+    if (!currentGoal.lockImage) {
+        return <LockSetup onLockSet={handleLockSet} />;
+    }
+
+    if (currentGoal.status === 'active') {
+        if (!apiKey) return null; // Should be handled by parent render logic
+        return <GoalTracker goal={currentGoal} onGoalSuccess={handleGoalSuccess} apiKey={apiKey} onInvalidApiKey={handleInvalidApiKey} />;
+    }
+
+    if (currentGoal.status === 'completed') {
+        return <SuccessScreen goal={currentGoal} onReset={handleReset} />;
+    }
+    
+    return <GoalSetup onGoalSet={handleGoalSet} />;
   };
 
   const renderApp = () => {
@@ -114,7 +178,7 @@ const App: React.FC = () => {
 
     return (
       <>
-        {isAuthenticated && (
+        {user && (
           <button
             onClick={handleLogout}
             className="absolute top-2 right-2 text-brand-light hover:text-brand-highlight text-sm font-semibold transition-colors z-10"
