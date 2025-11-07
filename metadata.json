@@ -1,0 +1,7 @@
+{
+  "name": "Goal-Locked Code Keeper",
+  "description": "An application to help users achieve personal goals by 'locking away' a valuable, private 3-digit code. The code is only revealed upon successful goal completion, verified by submitting a photo to an AI for validation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
